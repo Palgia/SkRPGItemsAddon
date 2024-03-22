@@ -1,4 +1,4 @@
-** SKRPGITEMSADDON **
+SKRPGITEMSADDON
 
 Allow stats from SkRPG to be used with items and equipment !
 
