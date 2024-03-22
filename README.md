@@ -9,3 +9,6 @@ This addon only works if SkRPG is installed !
 1- Put SkRPGItemsAddon.sk in plugins/Skript/scripts/SkRPG/Main/Addons/  
 2- Do /sk reload SkRPG/Main/Addons/SkRPGItemsAddon  
 3- Done !
+
+
+Read Wiki to see more infos about API and commands
