@@ -32,10 +32,52 @@ command /skrpgitemsaddon <text> <text> <integer>:
                         send "&a[SkRPGItemsAddon] &cYou need to set an amount !"                    
                 else:
                     send "&a[SkRPGItemsAddon] &cStat &e%arg 2% &cdoes not exists !"
+        if arg 1 is "removestat":
+            if tool of player is air:
+                send "&a[SkRPGItemsAddon] &cYou need to hold something in your main hand !"
+                stop
+            else:
+                set {_stat} to arg 2
+                if {skrpg.config.database::*} contains {_stat}:
+                    if arg 3 is set:
+                        set tool of player to skRPGItemsAddonRemoveStatAmount(tool of player, arg 2, arg 3)
+                        send "&a[SkRPGItemsAddon] &eItem changed successfully !"  
+                    else:
+                        send "&a[SkRPGItemsAddon] &cYou need to set an amount !"                    
+                else:
+                    send "&a[SkRPGItemsAddon] &cStat &e%arg 2% &cdoes not exists !"
+        if arg 1 is "applyupgrade":
+            if tool of player is air:
+                send "&a[SkRPGItemsAddon] &cYou need to hold something in your main hand !"
+                stop
+            else:
+                set {_stat} to arg 2
+                if {skrpg.config.database::*} contains {_stat}:
+                    if arg 3 is set:
+                        set tool of player to skRPGItemsAddonUpgradeStat(tool of player, arg 2, arg 3, "default")
+                        send "&a[SkRPGItemsAddon] &eItem changed successfully !"  
+                    else:
+                        send "&a[SkRPGItemsAddon] &cYou need to set an amount !"                    
+                else:
+                    send "&a[SkRPGItemsAddon] &cStat &e%arg 2% &cdoes not exists !"
+        if arg 1 is "removeupgrade":
+            if tool of player is air:
+                send "&a[SkRPGItemsAddon] &cYou need to hold something in your main hand !"
+                stop
+            else:
+                set {_stat} to arg 2
+                if {skrpg.config.database::*} contains {_stat}:
+                    if arg 3 is set:
+                        set tool of player to skRPGItemsAddonRemoveUpgradeAmount(tool of player, arg 2, arg 3, "default")
+                        send "&a[SkRPGItemsAddon] &eItem changed successfully !"  
+                    else:
+                        send "&a[SkRPGItemsAddon] &cYou need to set an amount !"                    
+                else:
+                    send "&a[SkRPGItemsAddon] &cStat &e%arg 2% &cdoes not exists !"
 
 on tab complete of "/skrpgitemsaddon":
-    set tab completions for position 1 to "setstat"
-    if tab arg-1 is "setstat":
+    set tab completions for position 1 to "setstat" and "removestat" and "applyupgrade" and "removeupgrade"
+    if tab arg-1 is "setstat" or "removestat" or "applyupgrade" or "removeupgrade":
         set tab completions for position 2 to {skrpg.config.database::*}
         if tab arg-2 is set:
             set tab completions for position 3 to 5 and 10 and 15 and 20 and 30 and 35 and 40
@@ -96,18 +138,30 @@ function skRPGItemsAddonRemoveStatAmount(i: item, stat: string, amount: integer)
                         set {_text} to "&a+%{_finalamount}%"
                     set {_lore::%loop-index%} to "%formatted {skrpg.config.database::%{_stat}%::display-name}%&8: %{_text}%"
             set {_i} to {_i} with lore {_lore::*}
+        #Update the stat amount with upgrades
+        set {_source-list::*} to string list tag "tag;SKRPGITEMS-sources-list" of nbt compound of {_i}
+        if {_source-list::*} is set:
+            loop {_source-list::*}:
+                set {_upgrade_int} to int tag "tag;SKRPGITEMS-%{_stat}%-upgrade-source-%loop-value%" of nbt compound of {_i}
+                if {_upgrade_int} is set:
+                    set int tag "tag;SKRPGITEMS-%{_stat}%" of nbt compound of {_i} to {_int}+{_upgrade_int}
         set {_i} to skRPGItemsAddonRefreshStatLineGlobal({_i}, {_stat})
     return {_i}
 #
 #Function to entirely remove a stat from an item
 #Returns the item
 #
-function skRPGItemsAddonRemoveStat(i: item, stat: string, storage: string) :: item:
+function skRPGItemsAddonRemoveStat(i: item, stat: string) :: item:
     if {skrpg.config.database::*} contains {_stat}:
         set {_int} to int tag "tag;SKRPGITEMS-%{_stat}%" of nbt compound of {_i}
         if {_int} is not set:
             return {_i}
             stop
+        #Check if there are upgrades, then remove
+        set {_source-list::*} to string list tag "tag;SKRPGITEMS-sources-list" of nbt compound of {_i}
+        if {_source-list::*} is set:
+            loop {_source-list::*}:
+                set {_i} to skRPGItemsAddonRemoveUpgrade({_i}, {_stat}, loop-value)
         delete int tag "tag;SKRPGITEMS-%{_stat}%" of nbt compound of {_i}
         set {_lore::*} to lore of {_i}
         loop {_lore::*}:
@@ -211,15 +265,19 @@ function skRPGItemsAddonRemoveUpgrade(i: item, stat: string = "defense", source:
         #Check if the source exists in the list
         set {_source-list::*} to string list tag "tag;SKRPGITEMS-sources-list" of nbt compound of {_i}
         if {_source-list::*} is set:
-            #Remove source
-            remove {_source} from {_source-list::*}
+            #Remove source if its not used anymore
+            set {_source_is_used} to skRPGItemsAddonIsUpgraded({_i})
+            if {_source_is_used} is false:
+                remove {_source} from {_source-list::*}
             #If there is not sources anymore, reset the line. Else, update it
             if {_source-list::*} is empty:
                 delete string list tag "tag;SKRPGITEMS-sources-list" of nbt compound of {_i} 
             else:
                 set string list tag "tag;SKRPGITEMS-sources-list" of nbt compound of {_i} to {_source-list::*}
         return skRPGItemsAddonSetStat({_i}, {_stat}, {_int})
-
+    else:
+        return {_i}
+        stop
 #
 #Function to parse a text as an upgrade display
 #Will return the display without the placeholders
@@ -254,6 +312,7 @@ function skRPGItemsAddonRefreshStatLine(i: item, stat: string, source: string) :
                 loop {_all-sources::*}:
                     set {_source2} to loop-value-2
                     set {_display2} to skRPGItemsAddonParseDisplay({_i}, {_stat}, {_source2})
+                    {_lore::%loop-index-1%} does not contain {_display2}
                     set {_lore::%loop-index-1%} to "%formatted {_lore::%loop-index-1%}% %{_display2}%"
             else:
                 set {_int} to int tag "tag;SKRPGITEMS-%{_stat}%" of nbt compound of {_i}
@@ -261,6 +320,7 @@ function skRPGItemsAddonRefreshStatLine(i: item, stat: string, source: string) :
                     set {_text} to "&c%{_int}%"
                 else:
                     set {_text} to "&a+%{_int}%"
+                {_lore::%loop-index-1%} does not contain {_display2}
                 set {_lore::%loop-index-1%} to "%formatted {skrpg.config.database::%{_stat}%::display-name}%&8: %{_text}%"
     set {_i} to {_i} with lore {_lore::*}
     return {_i}
@@ -274,15 +334,20 @@ function skRPGItemsAddonRefreshStatLineGlobal(i: item, stat: string) :: item:
         set {_source} to loop-value
         set {_i} to skRPGItemsAddonRefreshStatLine({_i}, {_stat}, {_source})
     return {_i}
+#
+#Function to test if an item is upgraded
+#
+function skRPGItemsAddonIsUpgraded(i: item) :: boolean:
 
-#command /test:
-#    trigger:
-#        set tool of player to skRPGItemsAddonUpgradeStat(tool of player, "defense", 10, "&d[{v}]", "default")
-
-#command /test2:
-#    trigger:
-#        set tool of player to skRPGItemsAddonRemoveUpgrade(tool of player, "defense", "default")
-
-#command /test3:
-#    trigger:
-#        set tool of player to skRPGItemsAddonRemoveUpgradeAmount(tool of player, "defense", 10, "default")
+    set {_source-list::*} to string list tag "tag;SKRPGITEMS-sources-list" of nbt compound of {_i}
+    if {_source-list::*} is set:
+        loop {_source-list::*}:
+            set {_source} to loop-value
+            loop {skrpg.config.database::*}:
+                set {_stat} to loop-value-2
+                if int tag "tag;SKRPGITEMS-%{_stat}%-upgrade-source-%{_source}%" of nbt compound of {_i} is set:
+                    return true
+                    stop
+        return false
+    else:
+        return false
